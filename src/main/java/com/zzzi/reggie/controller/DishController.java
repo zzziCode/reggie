@@ -11,14 +11,18 @@ import com.zzzi.reggie.entity.DishFlavor;
 import com.zzzi.reggie.service.CategoryService;
 import com.zzzi.reggie.service.DishFlavorService;
 import com.zzzi.reggie.service.DishService;
+import jdk.nashorn.internal.runtime.regexp.joni.ast.StringNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author zzzi
@@ -36,6 +40,8 @@ public class DishController {
     private DishFlavorService dishFlavorService;
     @Autowired
     private CategoryService categoryService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     //新增菜品的代码
     //不仅要保存到菜品表中。还需要保存到口味表中
@@ -44,6 +50,10 @@ public class DishController {
     public R<String> addDish(@RequestBody DishDto dishDto) {
         log.info("构造好的菜品信息为：{}", dishDto);
         dishService.saveWithFlavor(dishDto);
+        //从缓存中删除菜品缓存数据
+        //只清理变化的菜品的缓存
+        String key = "dish_" + dishDto.getCategoryId() + "_1";
+        redisTemplate.delete(key);
         return R.success("新增菜品成功");
     }
 
@@ -117,20 +127,44 @@ public class DishController {
         return R.success(dishDto);
     }
 
+    /**@author zzzi
+     * @date 2023/12/8 10:23
+     * 这里的更新需要删除两个缓存，一个是原有分类的缓存，一个是新分类的缓存
+     * 原有分类的缓存需要通过菜品id查询出来，新分类的缓存直接删除即可
+     */
     //将修改的菜品信息及其对应的口味信息更新
     @PutMapping
     public R<String> updateDish(@RequestBody DishDto dishDto) {
         log.info("构造好的菜品信息为：{}", dishDto);
         dishService.updateWithFlavor(dishDto);
+        //从缓存中删除菜品缓存数据
+        Dish dish = dishService.getById(dishDto);
+        //删除原来的分类和新的分类下的所有缓存（如果存在的话）
+        String oldKey = "dish_" + dish.getCategoryId() + "_1";
+        String newKey = "dish_" + dishDto.getCategoryId() + "_1";
+        redisTemplate.delete(oldKey);
+        redisTemplate.delete(newKey);
         return R.success("新增菜品成功");
     }
 
 
     //根据传递来的菜品名称或者菜品分类id查询结果
     //查询菜品时，不仅需要查询菜品，还需要将其口味查询出来
+    //进行改造，将查询到的菜品缓存到redis中
     @GetMapping("/list")
     public R<List<DishDto>> list(Dish dish) {
         log.info("查询的参数为：{}", dish);
+        //构造一个redis的key
+        String key = "dish_" + dish.getCategoryId() + "_" + dish.getStatus();
+        List<DishDto> res = null;
+        res = (List<DishDto>) redisTemplate.opsForValue().get(key);
+
+        //如果缓存中有对应的数据
+        if (res != null) {
+            return R.success(res);
+        }
+
+        //缓存中没有对应的菜品数据，需要从数据库中获取
         LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(dish.getCategoryId() != null, Dish::getCategoryId, dish.getCategoryId());
         //状态为停售的菜品就不查询了
@@ -140,7 +174,7 @@ public class DishController {
 
         //查询到的所有菜品
         List<Dish> list = dishService.list(queryWrapper);
-        List<DishDto> res = new ArrayList<>();
+        res = new ArrayList<>();
         //每一个菜品对应一个口味列表
         for (Dish dishList : list) {
             LambdaQueryWrapper<DishFlavor> Wrapper = new LambdaQueryWrapper<>();
@@ -155,10 +189,15 @@ public class DishController {
             res.add(dishDto);
         }
 
+        //将查询到的所有菜品保存到缓存中一份，设置60分钟的有效期
+        //后面再查询就是从缓存中查询
+        redisTemplate.opsForValue().set(key, res, 60, TimeUnit.MINUTES);
+
         return R.success(res);
     }
 
     //针对菜品的停售或者起售
+    //更新菜品之后，需要将对应的菜品数据从缓存中删除，避免出现脏数据
     @PostMapping("/status/{id}")
     public R<String> update(@PathVariable int id, Long[] ids) {
         log.info("接受到新的菜品信息为：{}", ids);
@@ -169,6 +208,10 @@ public class DishController {
             dish.setStatus(id);
 
             dishService.updateById(dish);
+            //从缓存中删除菜品数据
+            String key = "dish_" + dish.getCategoryId() + "_1";
+            redisTemplate.delete(key);
+
         }
 
         return R.success("修改菜品信息成功！");

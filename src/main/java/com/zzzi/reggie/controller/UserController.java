@@ -30,7 +30,7 @@ public class UserController {
         log.info("用户登录的信息为：{}", map);
 
         //根据手机号获取到当时生成的验证码，与现在接收到的验证码进行验证对比
-        log.info("用户session为:{}", session.getAttribute(map.get("phone")));
+        //log.info("用户session为:{}", session.getAttribute(map.get("phone")));
 
         //从redis中获取保存的验证码
         //String validCode = (String) session.getAttribute(map.get("phone"));
