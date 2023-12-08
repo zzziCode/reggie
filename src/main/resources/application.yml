@@ -10,6 +10,12 @@ spring:
     password: 123456
     # 在这里更改数据源，使用阿里的数据源
     type: com.alibaba.druid.pool.DruidDataSource
+  # redis的相关配置
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+#    password:
 mybatis-plus:
   configuration:
     #在映射实体或者属性时，将数据库中表名和字段名中的下划线去掉，按照驼峰命名法映射

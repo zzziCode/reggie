@@ -101,9 +101,8 @@
 
         <!--springboot中操作redis的起步依赖-->
         <dependency>
-            <groupId>com.github.AnonymousMister</groupId>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
-            <version>2.1.0.1.8</version>
         </dependency>
 
 
