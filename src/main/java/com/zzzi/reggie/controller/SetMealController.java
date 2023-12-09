@@ -15,6 +15,9 @@ import com.zzzi.reggie.service.SetMealService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -40,6 +43,8 @@ public class SetMealController {
      * 也就是要操作两张表
      */
     @PostMapping
+    //清理setmealCache下的所有缓存数据
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> saveWithDish(@RequestBody SetmealDto setmealDto) {
         log.info("接收到的套餐参数为：{}", setmealDto);
         setMealService.saveWithDish(setmealDto);
@@ -96,7 +101,10 @@ public class SetMealController {
 
     //根据传递来的id先查询得到一个套餐信息，包含套餐以及内部的所有菜品信息
     //查询两个表，封装一个SetmealDto返回
+    //查询时先从缓存中查询，如果没有的话就尝试缓存
+    //当查询结果为空时不缓存
     @GetMapping("/{id}")
+    @CachePut(value = "setmealCache", key = "#id", unless = "#result==null")
     public R<SetmealDto> getSetmealDtoById(@PathVariable Long id) {
         log.info("接收到的套餐id为：{}", id);
         SetmealDto res = setMealService.getSetmealDtoById(id);
@@ -107,6 +115,8 @@ public class SetMealController {
     //根据新修改的套餐及其包含的菜品更新两个表
     //先删除旧的，然后插入新的
     @PutMapping
+    //清理setmealCache下的所有缓存数据
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> updateWithFlavors(@RequestBody SetmealDto setmealDto) {
         log.info("新的套餐信息为:{}", setmealDto);
 
@@ -116,6 +126,8 @@ public class SetMealController {
 
     //对套餐进行停售或者起售
     @PostMapping("/status/{id}")
+    //清理setmealCache下的所有缓存数据
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> updateStatus(@PathVariable int id, Long[] ids) {
         log.info("接收到的id为:{}", ids);
 
@@ -136,6 +148,8 @@ public class SetMealController {
      * 为了事务的统一，批量删除最好传递一个数组
      */
     @DeleteMapping
+    //清理setmealCache下的所有缓存数据
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> deleteWithDish(Long[] ids) {
         log.info("接收到的待删除的套餐id为:{}", ids);
 
@@ -147,6 +161,8 @@ public class SetMealController {
 
     //查询当前分类下有多少套餐
     @GetMapping("/list")
+    //开启缓存
+    @Cacheable(value = "setmealCache", key = "#setmeal.categoryId+'_'+#setmeal.status")
     public R<List<Setmeal>> list(Setmeal setmeal) {
         log.info("前端传递来的请求为：{}", setmeal);
 

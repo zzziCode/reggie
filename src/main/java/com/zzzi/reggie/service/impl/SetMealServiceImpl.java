@@ -102,10 +102,10 @@ public class SetMealServiceImpl extends ServiceImpl<SetMealMapper, Setmeal> impl
     @Transactional
     public void deleteWithDish(Long[] ids) {
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
+        //当前待删除的套餐中存在正在售卖的套餐就不能删除
         queryWrapper.in(Setmeal::getId, ids);
-        int count = count(queryWrapper);
         queryWrapper.eq(Setmeal::getStatus, 1);
-        count(queryWrapper);
+        int count =count(queryWrapper);
         //当前有套餐处于起售状态，无法删除
         if (count > 0) {
             throw new CustomException("当前有套餐处于起售状态，无法删除");
