@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @ServletComponentScan//开启这个注解才能支持mvc中的过滤器
 @EnableTransactionManagement
 //开启缓存的功能
+//前端实现读写分离，后端实现主从复制
 @EnableCaching
 public class ReggieApplication {
     public static void main(String[] args) {
